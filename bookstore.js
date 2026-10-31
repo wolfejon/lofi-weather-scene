@@ -275,11 +275,12 @@ function resetParticles(){
 function resetMotes(){ motes = []; if (!scn.beam) return; for (let i = 0; i < 16 * MOTION; i++) motes.push({ x: L.winX + Math.random() * (L.ww + 30), y: L.winY + Math.random() * (H - L.winY), p: Math.random() * 6.28, v: .5 + Math.random() }); }
 
 // ---------------------------------------------------------------- the couple
-const her = { pose: 0, shift: 0, sighAt: performance.now() + 12000 + Math.random() * 10000, zAt: 0, quiet: 0 };
+const SNUG = -4; // pull her into his chest
+const her = { book: false, pose: 0, shift: 0, sighAt: performance.now() + 12000 + Math.random() * 10000, zAt: 0, quiet: 0 };
 const him = { glance: 0, flip: -1, flipAt: performance.now() + 9000, heart: 0 };
 let zs = [], puffs = [];
 function blanketTop(x, pose, br, k){
-  const bump = (c, w, h) => h * Math.max(0, 1 - ((x - c) / w) ** 2);
+  const bump = (c, w, h) => h * Math.max(0, 1 - ((x - SNUG - c) / w) ** 2);
   if (x <= 28) return 17;
   const A = [[42, 9, 3 + br], [55, 10, 4 + br], [67, 7, 3], [73, 4, 1]], B = [[43, 9, 3 + br], [58, 10, 4 + br], [68, 6, 4], [74, 3, 1]];
   const from = pose ? A : B, to = pose ? B : A; let s = 0;
@@ -316,7 +317,7 @@ function drawCouple(T, now){
   }
   if (pose === 1 && k > .6){ p('#a8c4d8', 74, 19, 2, 2); p('#ffffff', 75, 19, 1, 1); } // her socks peeking out
   // ----- her head (bob) resting on his chest
-  const lift = her.shift > 0 ? Math.round(Math.sin(her.shift * Math.PI) * -1) : 0, dx = pose, dy = lift;
+  const lift = her.shift > 0 ? Math.round(Math.sin(her.shift * Math.PI) * -1) : 0, dx = pose + SNUG, dy = lift;
   const h = (col, x, y, w = 1, hh = 1) => p(col, x + dx, y + dy, w, hh);
   h(c.hairF, 32, 9, 6); h(c.hairF, 31, 10, 8); h(c.hairFL, 34, 10, 2); h(c.hairF, 30, 11, 9);
   h(c.hairF, 30, 12, 2); h(c.skin, 32, 12, 4); h(c.hairF, 36, 12, 3);
@@ -327,7 +328,9 @@ function drawCouple(T, now){
   if (pose === 0) h(c.skin, 29, 16, 2, 1);
   p('#c98ba0', 36 + dx, 16 + dy, 5, 2); p('#b5778c', 36 + dx, 17 + dy, 5, 1); // her cardigan shoulder
   // his arm around her, over the blanket
-  p(c.sweater, 38, 17, 9, 2); p(c.sweaterD, 38, 18, 9, 1); p(c.skin, 47, 17, 2, 2);
+  p(c.sweater, 34, 17, 9, 2); p(c.sweaterD, 34, 18, 9, 1); p(c.skin, 43, 17, 2, 2);
+  // sometimes she dozed off with a book of her own, tucked under her hand on the blanket
+  if (her.book && k > .5){ const bx = 46 + dx, by = 15 + dy; p('#2f5d6a', bx, by, 8, 4); p('#3f7a88', bx, by, 8, 1); p('#f6ecd4', bx + 1, by + 4, 7, 1); p('#d9b45a', bx + 3, by + 1, 3, 1); p('#c98ba0', bx - 2, by + 2, 3, 2); p(c.skin, bx - 1, by + 1, 2, 1); }
   // zzz from her
   const hx = ox + 38 + dx, hy = oy + 8 + dy;
   if (now > her.zAt && her.quiet <= 0){ zs.push({ x: hx, y: hy, t: 0, big: zs.length % 3 === 2 }); her.zAt = now + 1500 / Math.max(.6, MOTION); }
@@ -348,7 +351,7 @@ function drawZs(dt){
     const x = L.cx + 25, y = Math.round(L.cTop - 12 - k * 6); ctx.fillRect(x, y, 1, 1); ctx.fillRect(x + 2, y, 1, 1); ctx.fillRect(x, y + 1, 3, 1); ctx.fillRect(x + 1, y + 2, 1, 1); ctx.globalAlpha = 1; }
 }
 function sigh(now){
-  her.shift = 1; her.pose ^= 1; her.quiet = 2.6; her.sighAt = now + (16000 + Math.random() * 20000);
+  her.shift = 1; her.pose ^= 1; if (Math.random() < .35) her.book = !her.book; her.quiet = 2.6; her.sighAt = now + (16000 + Math.random() * 20000);
   puffs.push({ x: L.cx + 29 + her.pose, y: L.cTop + 15, t: 0 }); audio.sigh();
   setTimeout(() => { him.glance = 3; him.heart = 2.2; }, 900);
 }
