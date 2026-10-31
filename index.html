@@ -511,6 +511,6 @@ for (const k of ['season','weather','time']) if (qs.get(k)){ state.over[k] = qs.
 resize(); renderHUD(); requestAnimationFrame(t => { last = t; frame(t); }); loadWeather();
 })();
 </script>
-<script>(()=>{let t;const b=document.body,wake=()=>{b.classList.remove('idle-ui');clearTimeout(t);t=setTimeout(()=>b.classList.add('idle-ui'),60000)};['pointerdown','pointermove','touchstart','keydown','wheel'].forEach(e=>addEventListener(e,wake,{passive:true,capture:true}));wake();})();</script>
+<script>(()=>{let t;const b=document.body,wake=()=>{b.classList.remove('idle-ui');clearTimeout(t);t=setTimeout(()=>b.classList.add('idle-ui'),5000)};['pointerdown','pointermove','touchstart','keydown','wheel'].forEach(e=>addEventListener(e,wake,{passive:true,capture:true}));wake();})();</script>
 </body>
 </html>
