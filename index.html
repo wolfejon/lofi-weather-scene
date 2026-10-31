@@ -39,9 +39,17 @@
   .chip{border:0;font:inherit;font-size:12.5px;font-weight:800;padding:6px 10px;border-radius:999px;background:transparent;color:var(--ink);cursor:pointer;white-space:nowrap}
   .chip[aria-pressed="true"]{background:var(--paper);box-shadow:0 2px 0 rgba(43,34,56,.18)}
   .toggle{pointer-events:auto;border:0;background:rgba(255,246,233,.55);font:inherit;font-weight:800;font-size:12px;color:var(--ink);padding:5px 12px;border-radius:999px;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-  .chips[hidden],.vol[hidden]{display:none}
+  .chips[hidden]{display:none}
   .vol{pointer-events:auto;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;background:rgba(255,246,233,.55);padding:4px 12px;border-radius:999px;backdrop-filter:blur(6px)}
   .vol input{accent-color:#e98a6b;width:110px}
+  .sndpanel{pointer-events:auto;display:flex;flex-direction:column;align-items:center;gap:6px;max-width:min(96vw,760px)}
+  .sndpanel[hidden]{display:none}
+  .sndpanel .row{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;align-items:center}
+  .tracks{flex-wrap:wrap;justify-content:center;border-radius:18px}
+  .now{font-size:12px;font-weight:700;color:var(--ink);background:rgba(255,246,233,.7);padding:3px 12px;border-radius:999px}
+  .nav{position:fixed;right:max(14px,env(safe-area-inset-right));top:max(14px,env(safe-area-inset-top));text-decoration:none;font-weight:800;font-size:13px;color:var(--ink);
+    background:var(--glass);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:8px 13px;border-radius:999px;box-shadow:0 4px 0 rgba(43,34,56,.16)}
+  .hide-ui .nav{opacity:0;pointer-events:none}
   .hide-ui .hud,.hide-ui .controls>*:not(.sound){opacity:0;pointer-events:none}
   @media (max-width:520px){.hud{padding:10px 12px}.hud .temp{font-size:26px}.chip{font-size:12px;padding:6px 8px}}
 </style>
@@ -56,6 +64,8 @@
   <div class="desc" id="desc">Peeking outside…</div>
   <div class="place" id="place">finding your little corner of the world</div>
 </section>
+
+<a class="nav" href="bookstore.html">📚 Bookstore →</a>
 
 <div class="controls">
   <div class="chips" id="chips" hidden>
@@ -81,13 +91,20 @@
       <button class="chip" data-v="night">night</button>
     </div>
   </div>
+  <div class="sndpanel" id="sndPanel" hidden>
+    <div class="now" id="nowPlaying"></div>
+    <div class="group tracks" id="tracks" role="group" aria-label="Pick a track"></div>
+    <div class="row"><label class="vol">vol <input id="vol" type="range" min="0" max="100" value="55" aria-label="Volume"></label>
+      <button class="toggle" id="dust" aria-pressed="false" title="very soft record dust, off by default">🎞️ dust off</button></div>
+  </div>
   <div style="display:flex;gap:8px;pointer-events:none;flex-wrap:wrap;justify-content:center">
     <button class="toggle" id="chipToggle" aria-expanded="false">✨ play with the weather</button>
-    <label class="vol" id="volWrap" hidden>vol <input id="vol" type="range" min="0" max="100" value="55" aria-label="Volume"></label>
   </div>
   <button class="sound" id="sound" aria-pressed="false"><span class="dot"></span><span id="soundLabel">Start lofi sound</span></button>
 </div>
 
+<script src="weather.js"></script>
+<script src="lofi.js"></script>
 <script>
 (() => {
 'use strict';
@@ -95,17 +112,11 @@
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const MOTION = reduceMotion ? 0.35 : 1;
 const $ = s => document.querySelector(s);
-const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
-const lerp = (a,b,t) => a + (b-a)*t;
-function rng(seed){ let s = seed >>> 0 || 1; return () => (s = (s*1664525 + 1013904223) >>> 0) / 4294967296; }
-function hex(c){ const n = parseInt(c.slice(1),16); return [n>>16, (n>>8)&255, n&255]; }
-function toHex(r,g,b){ return '#' + [r,g,b].map(v => clamp(Math.round(v),0,255).toString(16).padStart(2,'0')).join(''); }
-function mix(a,b,t){ const A = hex(a), B = hex(b); return toHex(lerp(A[0],B[0],t), lerp(A[1],B[1],t), lerp(A[2],B[2],t)); }
-function grey(a,t){ const [r,g,b] = hex(a); const y = r*.3+g*.59+b*.11; return toHex(lerp(r,y,t), lerp(g,y,t), lerp(b,y,t)); }
+const { clamp, lerp, rng, hex, toHex, mix, grey, seasonFor, weatherFromCode, LABELS, ICON, SEASON_WORD, PAL, NIGHT, palette } = window.CozyWeather;
 
 // ---------------------------------------------------------------- state
 const state = {
-  auto: { season: null, weather: 'cloudy', night: false, temp: null, code: 3, place: '' },
+  auto: { season: null, weather: 'cloudy', night: false, temp: null, code: 3, place: '', wind: 0 },
   over: { season: 'auto', weather: 'auto', time: 'auto' },
   lat: 47.61, lon: -122.33,
 };
@@ -115,24 +126,6 @@ const eff = () => ({
   night: state.over.time !== 'auto' ? state.over.time === 'night' : state.auto.night,
 });
 
-function seasonFor(lat, d){
-  let m = d.getMonth(); // 0..11
-  if (lat < 0) m = (m + 6) % 12;
-  if (Math.abs(lat) < 12) return 'summer';
-  return m <= 1 || m === 11 ? 'winter' : m <= 4 ? 'spring' : m <= 7 ? 'summer' : 'autumn';
-}
-function weatherFromCode(c){
-  if (c === 0 || c === 1) return 'clear';
-  if (c === 2 || c === 3) return 'cloudy';
-  if (c === 45 || c === 48) return 'fog';
-  if ((c >= 51 && c <= 67) || (c >= 80 && c <= 82)) return 'rain';
-  if ((c >= 71 && c <= 77) || c === 85 || c === 86) return 'snow';
-  if (c >= 95) return 'storm';
-  return 'cloudy';
-}
-const LABELS = {0:'Clear sky',1:'Mostly clear',2:'Partly cloudy',3:'Overcast',45:'Foggy',48:'Frosty fog',51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',56:'Freezing drizzle',57:'Freezing drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',66:'Freezing rain',67:'Freezing rain',71:'Light snow',73:'Snow',75:'Heavy snow',77:'Snow grains',80:'Rain showers',81:'Rain showers',82:'Big showers',85:'Snow showers',86:'Snow showers',95:'Thunderstorm',96:'Thunder + hail',99:'Thunder + hail'};
-const ICON = { clear:['☀️','🌙'], cloudy:['⛅','☁️'], rain:['🌧️','🌧️'], snow:['🌨️','🌨️'], fog:['🌫️','🌫️'], storm:['⛈️','⛈️'] };
-const SEASON_WORD = { spring:'spring 🌸', summer:'summer 🌻', autumn:'autumn 🍂', winter:'winter ❄️' };
 const COZY = {
   clear:['a soft, open-sky kind of day','stars are out — perfect for tea'],
   cloudy:['clouds drifting by, nice and slow','a quiet cloudy night'],
@@ -142,30 +135,6 @@ const COZY = {
   storm:['a moody storm rolls through','thunder far away, cozy inside'],
 };
 
-// ---------------------------------------------------------------- palettes
-const PAL = {
-  spring: { skyT:'#8fc6ee', skyB:'#f6d8e6', far:'#a9c3d9', mid:'#8fc98a', near:'#6db36e', grass:'#7cc274', grass2:'#5a9e5c', road:'#e7cfa6', road2:'#cfb187',
-            leaf:['#7fc77a','#5ea962','#a6dd8c'], bloom:['#f7b6cf','#f9d3e1','#ee93b6'], trunk:'#7a5640', wall:['#fbeedd','#f4e1c6','#e9d4f0'], roof:['#e7837a','#7aa7d8','#b98bd6'], flower:['#ffffff','#ffd86b','#f39bbd','#b9a2ff'] },
-  summer: { skyT:'#59b4f0', skyB:'#cdeefd', far:'#8db7d9', mid:'#5fb36a', near:'#3f9a55', grass:'#5fb85d', grass2:'#45964b', road:'#ead2a0', road2:'#d2b47c',
-            leaf:['#4fa857','#3b8d47','#78c46a'], bloom:['#ffd35c','#ff9f6b','#ffffff'], trunk:'#6e4b33', wall:['#fff3df','#ffe9c2','#e6f1f5'], roof:['#e86b5a','#4f8fd1','#f2a541'], flower:['#ffe066','#ff8fa3','#ffffff','#ff9f43'] },
-  autumn: { skyT:'#f0a982', skyB:'#ffe2b8', far:'#c79b97', mid:'#c68a4b', near:'#a8693a', grass:'#b9a453', grass2:'#9a8641', road:'#e3c393', road2:'#c9a271',
-            leaf:['#e9772f','#d6532b','#f2b33d','#c43d2b'], bloom:['#f2b33d','#e9772f'], trunk:'#5d3f2c', wall:['#fbe9cf','#f1d7b3','#efe0cf'], roof:['#a8462f','#6b4a8a','#4f6e5a'], flower:['#f2b33d','#e46a3a','#fff1c1'] },
-  winter: { skyT:'#9fb9da', skyB:'#e8eff8', far:'#c6d3e6', mid:'#e3ebf5', near:'#cfdcec', grass:'#eef4fb', grass2:'#d4e1ef', road:'#c9d4e2', road2:'#b0bed1',
-            leaf:['#3f6b5f','#2f5a50','#55806f'], bloom:['#ffffff'], trunk:'#5b4a44', wall:['#f6efe6','#efe4d6','#e2e9f2'], roof:['#b7524a','#4e6a9a','#6f5a8c'], flower:['#ffffff'] },
-};
-const NIGHT = '#141a3a';
-function palette(season, weather, night){
-  const p = JSON.parse(JSON.stringify(PAL[season]));
-  const dull = weather === 'clear' ? 0 : weather === 'cloudy' ? .35 : weather === 'fog' ? .55 : .5;
-  if (dull){ p.skyT = mix(grey(p.skyT, dull), '#9aa3b5', dull*.5); p.skyB = mix(grey(p.skyB, dull), '#c8ccd6', dull*.5); p.far = grey(p.far, dull*.6); }
-  if (night){
-    p.skyT = mix(p.skyT, '#0d1030', .86); p.skyB = mix(p.skyB, '#3b3f78', .7);
-    const dim = (c, t=.58) => mix(c, NIGHT, t);
-    for (const k of ['far','mid','near','grass','grass2','road','road2','trunk']) p[k] = dim(p[k], k==='far'?.62:.58);
-    for (const k of ['leaf','bloom','wall','roof','flower']) p[k] = p[k].map(c => dim(c));
-  }
-  return p;
-}
 
 // ---------------------------------------------------------------- canvas setup
 const cv = $('#scene'), ctx = cv.getContext('2d');
@@ -240,7 +209,7 @@ function house(g, x, y, R, season, night){
   const wx = x + 8; px(mix(wall,'#3b2f2f',.5), wx-1, y - h + 2, 5, 5, g); px(lit, wx, y - h + 3, 3, 3, g);
   if (!night) px('#ffffff', wx, y - h + 3, 1, 1, g); else px('#fff1c4', wx, y - h + 3, 1, 1, g);
   px(mix(wall,'#3b2f2f',.5), wx, y - h + 4, 3, 1, g);
-  houses.push({ x: wx + 1, y: y - h + 4, chim: { x: chx + 1, y: y - h - rh } });
+  houses.push({ x: wx + 1, y: y - h + 4, win: { x: wx, y: y - h + 3 }, peak: { x: x + Math.floor(w/2) - 1, y: y - h - rh - 1 }, chim: { x: chx + 1, y: y - h - rh } });
   if (season !== 'winter') for (let i = 0; i < w-2; i += 2) px(P.flower[(R()*P.flower.length)|0], x + 1 + i, y - 1, 1, 1, g);
 }
 function buildScene(){
@@ -324,6 +293,16 @@ function buildScene(){
   scene.clouds = Array.from({ length: cloudN }, (_, i) => ({ x: SR()*W, y: 6 + SR()*horizon*.45, w: 18 + SR()*30, v: (.6 + SR()*.8) * (e.weather==='storm'?2.5:1), seed: i }));
   scene.cloudCol = e.weather === 'clear' || e.weather === 'cloudy' ? (e.night ? '#4a4f82' : '#ffffff') : (e.night ? '#3a3d5e' : '#d3d6df');
   scene.cloudShade = mix(scene.cloudCol, e.night ? '#20234a' : '#a7aec2', .45);
+  // seasonal sticker on one cottage window
+  scene.cozy = houses[Math.min(1, houses.length - 1)];
+  if (scene.cozy){ const S = { autumn:[['.o.','ooo','.d.'], {o:'#e9772f', d:'#8a4a22'}], winter:[['w.w','.w.','w.w'], {w:'#ffffff'}],
+      spring:[['.p.','pyp','.p.'], {p:'#f39bbd', y:'#ffe066'}], summer:[['.y.','yoy','.y.'], {y:'#ffd35c', o:'#ff9f43'}] }[e.season];
+    S[0].forEach((row, r) => [...row].forEach((ch, c) => { if (ch !== '.') px(e.night ? mix(S[1][ch], '#ffd27a', .25) : S[1][ch], scene.cozy.win.x + c, scene.cozy.win.y + r, 1, 1, g); })); }
+  // tiny distant cottage lights on the hills (twinkle at night)
+  scene.farLights = []; const FR = rng(77 + W);
+  for (let i = 0; i < Math.max(5, W / 22); i++){ const x = (FR()*W)|0, hh = 14 + Math.sin(x*.05+2)*6 + Math.sin(x*.017)*6;
+    scene.farLights.push({ x, y: Math.round(horizon - hh + 12 + FR()*5), p: FR()*6.28, sp: .4 + FR()*1.2, c: FR() < .3 ? '#ffe9b0' : '#ffc66e' }); }
+  scene.perches = [...houses.map(h => ({ x: h.peak.x, y: h.peak.y })), ...Array.from({ length: 4 }, (_, i) => ({ x: Math.floor(W * (.12 + i*.24)), y: groundY - 3 }))];
   scene.e = e; resetParticles();
 }
 
@@ -400,6 +379,39 @@ function updateCritter(dt, now){
   if ((c.dir > 0 && c.x > W + 24) || (c.dir < 0 && c.x < -30)){ critter = null; nextCritter = now + (14000 + Math.random()*16000) / Math.max(.5, MOTION); }
 }
 
+
+// ---------------------------------------------------------------- a little bird
+const BIRD = { pal:{ b:'#6b5a4e', h:'#5a4a40', r:'#e9773f', y:'#f2c14e', k:'#3a3247' }, sit:['...hy','bbbh.','.rr..','..k..'], peck:['.....','bbbh.','.rrhy','..k..'],
+  up:['.b...','bbbhy','.rr..','.....'], down:['.....','bbbhy','.bb..','.b...'] };
+let bird = null, nextBird = performance.now() + 9000;
+function drawBird(rows, x, y, dir){ const night = scene.e.night;
+  for (let r = 0; r < rows.length; r++) for (let c = 0; c < 5; c++){ const ch = rows[r][c]; if (ch === '.') continue;
+    let col = BIRD.pal[ch]; if (night) col = mix(col, NIGHT, .35); ctx.fillStyle = col; ctx.fillRect(Math.round(dir > 0 ? x + c : x + 4 - c), Math.round(y + r), 1, 1); } }
+function updateBird(dt, now){
+  const e = scene.e;
+  if (!bird){ if (now > nextBird && !e.night && e.weather !== 'storm' && e.weather !== 'rain' && scene.perches.length){
+      const t = scene.perches[(Math.random()*scene.perches.length)|0], dir = Math.random() < .5 ? 1 : -1;
+      bird = { s:'in', dir, x: dir > 0 ? -8 : W + 8, y: Math.max(4, t.y - 30 - Math.random()*20), tx: t.x, ty: t.y - 4, sx: 0, sy: 0, k: 0, t: 0, stay: 4 + Math.random()*6, hop: 0 };
+      bird.sx = bird.x; bird.sy = bird.y; }
+    else if (now > nextBird) nextBird = now + 15000;
+    return; }
+  const b = bird; b.t += dt;
+  if (b.s === 'in' || b.s === 'out'){ b.k = Math.min(1, b.k + dt / (b.s === 'in' ? 3.2 : 2.6) * MOTION);
+    const ease = b.s === 'in' ? 1 - Math.pow(1 - b.k, 2) : b.k * b.k;
+    b.x = lerp(b.sx, b.tx, ease); b.y = lerp(b.sy, b.ty, ease) + Math.sin(b.k * Math.PI) * (b.s === 'in' ? -6 : 4);
+    drawBird(Math.floor(b.t * 9) % 2 ? BIRD.up : BIRD.down, b.x - 2, b.y, b.dir);
+    if (b.k >= 1){ if (b.s === 'in'){ b.s = 'sit'; b.t = 0; } else { bird = null; nextBird = now + (18000 + Math.random()*24000); } }
+    return; }
+  // perched: hop, peck, look around
+  b.stay -= dt; let rows = BIRD.sit, yo = 0;
+  if (b.hop > 0){ b.hop -= dt; yo = -Math.round(Math.sin((1 - b.hop / .3) * Math.PI) * 2); b.x = clamp(b.x + b.dir * dt * 6, b.tx - 3, b.tx + 3); }
+  else if (Math.random() < dt * .5) b.hop = .3;
+  else if (Math.random() < dt * .6) b.dir *= -1;
+  if (Math.sin(b.t * 3.1) > .75 && b.hop <= 0) rows = BIRD.peck;
+  drawBird(rows, b.x - 2, b.y + yo, b.dir);
+  if (b.stay <= 0){ b.s = 'out'; b.k = 0; b.t = 0; b.sx = b.x; b.sy = b.y; b.dir = Math.random() < .5 ? 1 : -1; b.tx = b.dir > 0 ? W + 10 : -10; b.ty = Math.max(2, b.y - 40); }
+}
+
 // ---------------------------------------------------------------- frame
 let last = performance.now(), T = 0, flash = 0, nextFlash = 6;
 function cloud(cx, cy, w, seed){
@@ -417,20 +429,25 @@ function frame(now){
   ctx.globalAlpha = 1;
   // clouds
   for (const c of scene.clouds){ c.x += c.v * dt * 2 * MOTION; if (c.x - c.w > W) c.x = -c.w; cloud(c.x, c.y, c.w, c.seed); }
-  // chimney smoke
-  if (e.season === 'autumn' || e.season === 'winter' || e.night){
-    for (const h of houses){ for (let i = 0; i < 6; i++){ const k = ((T*.35 + i/6) % 1);
-      ctx.globalAlpha = (1 - k) * .45; ctx.fillStyle = e.night ? '#9aa0c8' : '#f4f1ee';
-      const s = 1 + Math.round(k*2); ctx.fillRect(Math.round(h.chim.x + Math.sin(T + i)*1.5 + k*6), Math.round(h.chim.y - k*16), s, s); } }
-    ctx.globalAlpha = 1; }
+  // chimney smoke (the cozy cottage always has the kettle on)
+  for (const h of houses){ const cozy = h === scene.cozy; if (!cozy && !(e.season === 'autumn' || e.season === 'winter' || e.night)) continue;
+    const n = cozy ? 9 : 6, sp = cozy ? .42 : .35;
+    for (let i = 0; i < n; i++){ const k = ((T*sp + i/n) % 1);
+      ctx.globalAlpha = (1 - k) * (cozy ? .55 : .42); ctx.fillStyle = e.night ? '#9aa0c8' : '#f4f1ee';
+      const s = 1 + Math.round(k*(cozy ? 3 : 2)); ctx.fillRect(Math.round(h.chim.x + Math.sin(T*1.2 + i)*1.5 + k*(e.weather==='storm'?14:6)), Math.round(h.chim.y - k*(cozy?20:16)), s, s); } }
+  ctx.globalAlpha = 1;
   // night glows
   if (e.night){
+    for (const l of scene.farLights){ const tw = Math.sin(T*l.sp + l.p), a = tw > .93 ? .25 : .55 + .45*(tw*.5+.5); ctx.globalAlpha = a; ctx.fillStyle = l.c; ctx.fillRect(l.x, l.y, 1, 1);
+      ctx.globalAlpha = a*.18; ctx.fillRect(l.x-1, l.y, 3, 1); ctx.fillRect(l.x, l.y-1, 1, 3); }
+    ctx.globalAlpha = 1;
     for (const h of houses){ const a = .09 + Math.sin(T*2 + h.x)*.015; ctx.fillStyle = `rgba(255,210,122,${a})`; ctx.fillRect(h.x - 4, h.y - 4, 9, 8); ctx.fillRect(h.x - 2, h.y - 6, 5, 12); }
     for (const l of scene.lamps){ ctx.fillStyle = 'rgba(255,227,154,.13)'; ctx.fillRect(l.x - 6, l.y - 3, 13, 7); ctx.fillRect(l.x - 3, l.y - 6, 7, 13); ctx.fillStyle='rgba(255,227,154,.08)'; ctx.fillRect(l.x-5, groundY, 11, 7); }
   }
   // tufts swaying
   for (const t of scene.tufts){ const sw = Math.round(Math.sin(T*1.6 + t.x*.3) * .8); ctx.fillStyle = t.c; ctx.fillRect(t.x, t.y - t.h + 1, 1, t.h); ctx.fillRect(t.x + sw, t.y - t.h, 1, 1); }
   updateCritter(dt, now);
+  updateBird(dt, now);
   // particles
   const wind = e.weather === 'storm' ? 40 : 10;
   for (let i = 0; i < parts.length; i++){ const p = parts[i];
@@ -455,88 +472,9 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 
-// ---------------------------------------------------------------- lofi audio
-const audio = (() => {
-  let ac = null, master, lp, verbIn, playing = false, nextTime = 0, step = 0, timer = null, noiseBuf, vinyl, rainGain, vol = .55;
-  const BPM = 72, STEP = 60 / BPM / 2; // eighth notes
-  const PROG = {
-    spring: [[57,60,64,67],[53,57,60,64],[48,52,55,59],[55,59,62,65]],   // Am7 Fmaj7 Cmaj7 G7
-    summer: [[53,57,60,64],[55,59,62,65],[52,55,59,62],[57,60,64,67]],   // Fmaj7 G7 Em7 Am7
-    autumn: [[50,53,57,60],[55,59,62,65],[48,52,55,59],[57,60,64,67]],   // Dm7 G7 Cmaj7 Am7
-    winter: [[57,60,64,67],[50,53,57,60],[52,55,59,62],[53,57,60,64]],   // Am7 Dm7 Em7 Fmaj7
-  };
-  const PENTA = [69,72,74,76,79,81,84];
-  const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
-  function init(){
-    ac = new (window.AudioContext || window.webkitAudioContext)();
-    master = ac.createGain(); master.gain.value = 0;
-    lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200; lp.Q.value = .4;
-    const comp = ac.createDynamicsCompressor(); comp.threshold.value = -20; comp.ratio.value = 3;
-    lp.connect(comp); comp.connect(master); master.connect(ac.destination);
-    // simple feedback-delay "room"
-    verbIn = ac.createGain(); verbIn.gain.value = .28; const d1 = ac.createDelay(1), fb = ac.createGain(), dl = ac.createBiquadFilter();
-    d1.delayTime.value = .27; fb.gain.value = .38; dl.type = 'lowpass'; dl.frequency.value = 1400;
-    verbIn.connect(d1); d1.connect(dl); dl.connect(fb); fb.connect(d1); dl.connect(lp);
-    noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate); const d = noiseBuf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1;
-    // vinyl hiss + crackle
-    const crBuf = ac.createBuffer(1, ac.sampleRate * 3, ac.sampleRate), cd = crBuf.getChannelData(0);
-    for (let i = 0; i < cd.length; i++) cd[i] = (Math.random()*2-1) * .012 + (Math.random() < .0004 ? (Math.random()*2-1) * .5 : 0);
-    vinyl = ac.createBufferSource(); vinyl.buffer = crBuf; vinyl.loop = true;
-    const vf = ac.createBiquadFilter(); vf.type = 'bandpass'; vf.frequency.value = 3000; vf.Q.value = .5; const vg = ac.createGain(); vg.gain.value = .5;
-    vinyl.connect(vf); vf.connect(vg); vg.connect(master); vinyl.start();
-    // rain bed
-    const rs = ac.createBufferSource(); rs.buffer = noiseBuf; rs.loop = true; const rf = ac.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 900;
-    rainGain = ac.createGain(); rainGain.gain.value = 0; rs.connect(rf); rf.connect(rainGain); rainGain.connect(master); rs.start();
-  }
-  // tape wobble
-  const wob = t => Math.sin(t * 2 * Math.PI * .45) * 6;
-  function keys(m, t, len, vel){
-    const f = mtof(m);
-    for (const [type, mult, g, det] of [['triangle',1,.55,-4],['sine',1,.6,4],['sine',2,.12,0]]){
-      const o = ac.createOscillator(), gn = ac.createGain(); o.type = type; o.frequency.value = f * mult; o.detune.setValueAtTime(det + wob(t), t);
-      gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(vel * g, t + .012); gn.gain.exponentialRampToValueAtTime(vel * g * .35, t + .4); gn.gain.exponentialRampToValueAtTime(.0001, t + len);
-      o.connect(gn); gn.connect(lp); gn.connect(verbIn); o.start(t); o.stop(t + len + .05);
-    }
-  }
-  function bass(m, t, len){ const o = ac.createOscillator(), g = ac.createGain(); o.type = 'sine'; o.frequency.value = mtof(m);
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.22, t + .03); g.gain.exponentialRampToValueAtTime(.0001, t + len); o.connect(g); g.connect(lp); o.start(t); o.stop(t + len + .05); }
-  function kick(t){ const o = ac.createOscillator(), g = ac.createGain(); o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(42, t + .14);
-    g.gain.setValueAtTime(.32, t); g.gain.exponentialRampToValueAtTime(.0001, t + .32); o.connect(g); g.connect(lp); o.start(t); o.stop(t + .35); }
-  function hat(t, v){ const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noiseBuf; f.type = 'highpass'; f.frequency.value = 7000;
-    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + .05); s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random()); s.stop(t + .06); }
-  function snare(t){ const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); s.buffer = noiseBuf; f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = .7;
-    g.gain.setValueAtTime(.09, t); g.gain.exponentialRampToValueAtTime(.0001, t + .18); s.connect(f); f.connect(g); g.connect(lp); s.start(t, Math.random()); s.stop(t + .2); }
-  function schedule(){
-    while (nextTime < ac.currentTime + .25){
-      const season = scene.e.season, prog = PROG[season], bar = Math.floor(step / 8) % 4, s8 = step % 8, ch = prog[bar], t = nextTime + (s8 % 2 ? STEP * .12 : 0); // swing
-      if (s8 === 0){ ch.forEach((m, i) => keys(m, t + i * .025, STEP * 7, .085)); bass(ch[0] - 24, t, STEP * 3.5); }
-      if (s8 === 3 && Math.random() < .6) ch.slice(1).forEach((m, i) => keys(m, t + i*.02, STEP*2.5, .05));
-      if (s8 === 4) bass(ch[0] - 24 + (Math.random()<.5?7:0), t, STEP * 3);
-      if (Math.random() < (s8 % 2 ? .18 : .32)) keys(PENTA[(Math.random()*PENTA.length)|0] - (season==='winter'?12:0) + 12*(Math.random()<.15), t, STEP*3, .05);
-      const drums = scene.e.weather !== 'fog';
-      if (drums){ if (s8 === 0 || (s8 === 5 && Math.random() < .5)) kick(t); if (s8 === 4) snare(t); hat(t, s8 % 2 ? .012 : .022); }
-      nextTime += STEP; step++;
-    }
-  }
-  return {
-    get on(){ return playing; },
-    async toggle(){
-      if (!ac) init();
-      if (ac.state === 'suspended') await ac.resume();
-      playing = !playing;
-      const now = ac.currentTime; master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(master.gain.value, now);
-      if (playing){ master.gain.linearRampToValueAtTime(vol * .9, now + 2.5); nextTime = now + .1; schedule(); timer = setInterval(schedule, 80); this.weather(); }
-      else { master.gain.linearRampToValueAtTime(0, now + .6); clearInterval(timer); }
-      return playing;
-    },
-    setVol(v){ vol = v; if (ac && playing) master.gain.setTargetAtTime(vol * .9, ac.currentTime, .1); },
-    weather(){ if (!ac) return; const w = scene.e.weather; rainGain.gain.setTargetAtTime(w === 'rain' ? .07 : w === 'storm' ? .1 : 0, ac.currentTime, 1); },
-    thunder(){ if (!ac || !playing) return; const t = ac.currentTime + .4 + Math.random(), s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
-      s.buffer = noiseBuf; f.type = 'lowpass'; f.frequency.value = 180; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.35, t + .3); g.gain.exponentialRampToValueAtTime(.0001, t + 3);
-      s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + 3.1); },
-  };
-})();
+// ---------------------------------------------------------------- lofi audio (shared engine in lofi.js)
+const audio = window.Lofi.create();
+const windy = () => (state.auto.wind || 0) >= 25 && state.over.weather === 'auto';
 
 // ---------------------------------------------------------------- HUD
 function renderHUD(){
@@ -547,51 +485,15 @@ function renderHUD(){
   $('#desc').innerHTML = `${label} · ${SEASON_WORD[e.season]}${overridden ? '<span class="tag">pretend</span>' : ''}<br><span style="font-weight:600;color:var(--soft)">${COZY[e.weather][e.night?1:0]}</span>`;
   $('#place').textContent = a.place || '';
 }
-function applyAll(){ buildScene(); renderHUD(); audio.weather(); }
+function applyAll(){ buildScene(); renderHUD(); audio.weather(scene.e.weather, windy()); }
 
-// ---------------------------------------------------------------- weather fetch
-const TZ = { 'America/Los_Angeles':[34.05,-118.24,'Los Angeles'], 'America/Vancouver':[49.28,-123.12,'Vancouver'], 'America/Denver':[39.74,-104.99,'Denver'], 'America/Phoenix':[33.45,-112.07,'Phoenix'],
-  'America/Chicago':[41.88,-87.63,'Chicago'], 'America/New_York':[40.71,-74.01,'New York'], 'America/Toronto':[43.65,-79.38,'Toronto'], 'America/Anchorage':[61.22,-149.9,'Anchorage'], 'Pacific/Honolulu':[21.31,-157.86,'Honolulu'],
-  'America/Mexico_City':[19.43,-99.13,'Mexico City'], 'America/Sao_Paulo':[-23.55,-46.63,'São Paulo'], 'Europe/London':[51.51,-0.13,'London'], 'Europe/Paris':[48.86,2.35,'Paris'], 'Europe/Berlin':[52.52,13.4,'Berlin'],
-  'Europe/Madrid':[40.42,-3.7,'Madrid'], 'Europe/Rome':[41.9,12.5,'Rome'], 'Europe/Amsterdam':[52.37,4.9,'Amsterdam'], 'Asia/Tokyo':[35.68,139.69,'Tokyo'], 'Asia/Seoul':[37.57,126.98,'Seoul'], 'Asia/Shanghai':[31.23,121.47,'Shanghai'],
-  'Asia/Kolkata':[28.61,77.21,'Delhi'], 'Asia/Singapore':[1.35,103.82,'Singapore'], 'Australia/Sydney':[-33.87,151.21,'Sydney'], 'Australia/Melbourne':[-37.81,144.96,'Melbourne'], 'Pacific/Auckland':[-36.85,174.76,'Auckland'] };
-function getPosition(){
-  return new Promise(res => {
-    const fallback = () => { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone; const g = TZ[tz];
-      res(g ? { lat: g[0], lon: g[1], name: `near ${g[2]} (from your time zone)` } : { lat: 47.61, lon: -122.33, name: 'Seattle (default)' }); };
-    if (!navigator.geolocation) return fallback();
-    const to = setTimeout(fallback, 9000);
-    navigator.geolocation.getCurrentPosition(p => { clearTimeout(to); res({ lat: p.coords.latitude, lon: p.coords.longitude, name: null }); },
-      () => { clearTimeout(to); fallback(); }, { maximumAge: 30*60*1000, timeout: 8000, enableHighAccuracy: false });
-  });
-}
-async function loadWeather(){
-  const pos = await getPosition(); state.lat = pos.lat; state.lon = pos.lon;
-  state.auto.season = seasonFor(pos.lat, new Date());
-  const h = new Date().getHours(); state.auto.night = h < 6 || h >= 19; // guess until fetched
-  state.auto.place = pos.name || 'your spot'; applyAll();
-  const imperial = /^en-US/.test(navigator.language) || /^America\/(?!Sao|Mexico|Toronto|Vancouver)/.test(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  try {
-    const u = `https://api.open-meteo.com/v1/forecast?latitude=${pos.lat.toFixed(3)}&longitude=${pos.lon.toFixed(3)}&current=temperature_2m,weather_code,is_day&timezone=auto${imperial ? '&temperature_unit=fahrenheit' : ''}`;
-    const r = await fetch(u); const j = await r.json(); const c = j.current;
-    state.auto.temp = c.temperature_2m; state.auto.unit = imperial ? 'F' : 'C'; state.auto.code = c.weather_code;
-    state.auto.weather = weatherFromCode(c.weather_code); state.auto.night = c.is_day === 0;
-  } catch (err){ state.auto.code = null; state.auto.place = (state.auto.place || '') + ' · offline, imagining the weather'; }
-  applyAll();
-  if (!pos.name){
-    try { const r = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${pos.lat}&longitude=${pos.lon}&localityLanguage=en`);
-      const j = await r.json(); const n = j.city || j.locality || j.principalSubdivision; if (n){ state.auto.place = `📍 ${n}${j.principalSubdivisionCode ? ', ' + j.principalSubdivisionCode.split('-').pop() : ''}`; renderHUD(); } } catch {}
-  }
-}
+// ---------------------------------------------------------------- weather fetch (shared in weather.js)
+const loadWeather = () => window.CozyWeather.loadInto(state, applyAll);
 
 // ---------------------------------------------------------------- controls
-$('#sound').addEventListener('click', async () => {
-  const on = await audio.toggle(); $('#sound').classList.toggle('on', on); $('#sound').setAttribute('aria-pressed', on);
-  $('#soundLabel').textContent = on ? 'Lofi on · tap to mute' : 'Start lofi sound'; $('#volWrap').hidden = !on;
-});
-$('#vol').addEventListener('input', e => audio.setVol(e.target.value / 100));
+window.Lofi.mountUI(audio, { sound:'#sound', label:'#soundLabel', panel:'#sndPanel', tracks:'#tracks', now:'#nowPlaying', vol:'#vol', dust:'#dust' });
 $('#chipToggle').addEventListener('click', () => { const c = $('#chips'), open = c.hidden; c.hidden = !open; $('#chipToggle').setAttribute('aria-expanded', open); $('#chipToggle').textContent = open ? '✕ close' : '✨ play with the weather'; });
-document.querySelectorAll('.group').forEach(g => g.addEventListener('click', ev => {
+document.querySelectorAll('.group[data-k]').forEach(g => g.addEventListener('click', ev => {
   const b = ev.target.closest('.chip'); if (!b) return;
   g.querySelectorAll('.chip').forEach(x => x.setAttribute('aria-pressed', x === b)); state.over[g.dataset.k] = b.dataset.v; applyAll();
 }));

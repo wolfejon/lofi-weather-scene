@@ -1,21 +1,38 @@
 # Tiny Weather Window 🌸🌻🍂❄️
 
-A cozy, 16-bit-style pixel village that matches your real weather, season, and time of day, with gentle generative lofi music.
+Two cozy 16-bit pixel scenes that follow your real weather, season, and time of day, with gentle generative lofi music.
+
+| Page | What it is |
+|---|---|
+| `index.html` (**Village**) | A little village with critters and cyclists wandering by, weather and seasonal particles, a robin that lands on fences and roofs, a steaming kettle chimney, distant windows that twinkle at night, and a seasonal sticker on one cottage window. |
+| `bookstore.html` (**Bookstore**) | Inside a cozy bookshop: shelves, book stacks, lamps, a rug, and a big window onto the street outside. Rain runs down the glass, snow or leaves drift past, and fog or storms roll by. On a leather loveseat under a shared blanket, he reads (brown hair and a beard) while she sleeps curled on his chest (dark brown bob). Her red glasses sit on the side table. Little z's float up, she shifts and sighs now and then, and he glances over. The shop cat strolls the floor or the windowsill behind the couch, stopping to sit or stretch. |
+
+Each page has a nav button that goes to the other one.
 
 ## Open it
-- **On your computer:** double-click `index.html` (any modern browser). Allow location for local weather. If you say no, it guesses from your time zone (or uses Seattle).
-- **On your phone:** open the hosted URL (if published), or serve the folder: `python3 -m http.server 8080`, then go to `http://<your-ip>:8080`.
+- Live: https://wolfejon.github.io/lofi-weather-scene/ and https://wolfejon.github.io/lofi-weather-scene/bookstore.html
+- Local: `python3 -m http.server 8080` in this folder, then open `http://localhost:8080`. Allow location for local weather. If you don't, it guesses from your time zone.
 
-## Controls
-- **Start lofi sound**: tap to start or mute the music (browsers block autoplay). A volume slider shows up while it plays.
-- **✨ play with the weather**: pretend chips for season / weather / day–night. Set them back to `auto` for real conditions.
-- **Tap the scene** to call over a friend (cat, fox, bunny, or cyclist). **Double-tap** to hide the UI.
-- URL presets: `index.html?season=winter&weather=snow&time=night`
+## Controls (both pages)
+- **Start lofi sound** starts or mutes the music (browsers block autoplay). While it plays you get:
+  - **Track picker**: 🌧️ Soft Rain Piano · 🌆 Warm Evening Keys · 🌙 Midnight Walk · ☕ Sunday Dust · 🪟 Window Seat (a 6/8 waltz with brushes). Your last pick is remembered.
+  - **Now playing** label, a **volume** slider, and an optional **🎞️ dust** toggle for very faint record texture. It's off by default, so there's no hiss.
+- **✨ pretend chips** for season / weather / day–night. Set them back to `auto` for real conditions.
+- Village: **tap** to call over a friend. Bookstore: **tap the couple** and she stirs and sighs. **Tap elsewhere** and the cat wanders by.
+- **Double-tap** hides the UI.
+- URL presets: `bookstore.html?season=winter&weather=snow&time=night`
+
+## Sound
+- Synthesized live with Web Audio. There are no samples, no constant crackle, and no hiss.
+- Keys use detuned triangle/sine voices with a feedback-delay "room" reverb. Underneath are a sine bass, soft kick and snare, and gentle lowpassed hats.
+- A soft brown-noise rain bed plays only when it's raining or stormy. A gentle wind whoosh plays only in storms or real winds of 25 km/h or more. Distant thunder comes with storms.
+- In the bookstore, her sigh is a soft breathy swell.
 
 ## How it works
-- Weather comes from Open-Meteo (no key). Place name comes from BigDataCloud's free client reverse-geocode. Both are best-effort, so animation and music work offline.
-- Season comes from latitude + month, so the southern hemisphere is flipped.
-- Everything is drawn on a low-res Canvas and scaled up crisp. The music is made live with Web Audio: jazzy 7th-chord progressions that change with the season, swung keys, a sine bass, soft drums, vinyl crackle, and a rain bed.
-- Respects `prefers-reduced-motion` (fewer particles, slower motion, no lightning flashes).
+- `weather.js` handles shared weather, season, palettes and location. It uses Open-Meteo (no key), BigDataCloud for the place name, and falls back to your time zone. Season comes from latitude + month, so the southern hemisphere is flipped.
+- `lofi.js` is the shared generative music engine and the track/volume UI.
+- `bookstore.js` draws the bookstore scene. The village scene is inline in `index.html`.
+- Everything is drawn on a low-res Canvas and scaled up crisp. It fills the screen on phones.
+- Respects `prefers-reduced-motion` with fewer particles, slower motion, and no lightning flashes.
 
-Single file, no build, no dependencies.
+No build, no dependencies.
