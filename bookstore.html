@@ -49,6 +49,8 @@
   .now{font-size:12px;font-weight:700;color:var(--ink);background:rgba(255,246,233,.7);padding:3px 12px;border-radius:999px}
   .nav{position:fixed;right:max(14px,env(safe-area-inset-right));top:max(14px,env(safe-area-inset-top));text-decoration:none;font-weight:800;font-size:13px;color:var(--ink);
     background:var(--glass);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);padding:8px 13px;border-radius:999px;box-shadow:0 4px 0 rgba(43,34,56,.16)}
+  .hud,.nav,.controls,.controls>*{transition:opacity 1s ease}
+  .idle-ui .hud,.idle-ui .nav,.idle-ui .controls{opacity:0;pointer-events:none}
   .hide-ui .nav{opacity:0;pointer-events:none}
   .hide-ui .hud,.hide-ui .controls>*:not(.sound){opacity:0;pointer-events:none}
   @media (max-width:520px){.hud{padding:10px 12px}.hud .temp{font-size:26px}.chip{font-size:12px;padding:6px 8px}}
@@ -105,5 +107,6 @@
 <script src="weather.js"></script>
 <script src="lofi.js"></script>
 <script src="bookstore.js"></script>
+<script>(()=>{let t;const b=document.body,wake=()=>{b.classList.remove('idle-ui');clearTimeout(t);t=setTimeout(()=>b.classList.add('idle-ui'),60000)};['pointerdown','pointermove','touchstart','keydown','wheel'].forEach(e=>addEventListener(e,wake,{passive:true,capture:true}));wake();})();</script>
 </body>
 </html>
