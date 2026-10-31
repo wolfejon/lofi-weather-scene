@@ -227,9 +227,9 @@ function build(){
   P(f, C.woodL, t.x, t.y, t.w, 2); P(f, C.woodD, t.x + 1, t.y + 2, t.w - 2, 1); P(f, C.wood, t.x + Math.floor(t.w / 2) - 1, t.y + 3, 3, 9); P(f, C.woodD, t.x + 4, t.y + 11, t.w - 8, 2);
   // table lamp
   const lx = t.x + 4; P(f, '#7a5a3a', lx, t.y - 2, 3, 2); P(f, '#9a7a4a', lx + 1, t.y - 7, 1, 5); P(f, '#e9b465', lx - 2, t.y - 11, 7, 4); P(f, '#f6cf85', lx - 1, t.y - 12, 5, 1); P(f, '#c98a3e', lx - 2, t.y - 8, 7, 1);
-  scn.lamps.push({ x: lx + 1, y: t.y - 8, r: 34 });
+  scn.lamps.push({ x: lx + 1, y: t.y - 8, r: 34 }); scn.tableLamp = { x: lx + 1, y: t.y - 10 };
   // her red glasses + his mug
-  const gx = t.x + 9, gy = t.y - 2; rows(f, { r: '#d8353a', g: '#f7e9e9', d: '#9c2125' }, ['rrr.rrr', 'rgr.rgr', 'rrrdrrr'], gx, gy - 1); P(f, '#9c2125', gx - 1, gy - 1); P(f, '#9c2125', gx + 7, gy - 1);
+  const gx = t.x + 9, gy = t.y - 2; rows(f, { r: '#d8353a', g: '#f7e9e9', d: '#9c2125' }, ['rrr.rrr', 'rgr.rgr', 'rrrdrrr'], gx, gy - 1); scn.glasses = { x: gx + 1, y: gy }; P(f, '#9c2125', gx - 1, gy - 1); P(f, '#9c2125', gx + 7, gy - 1);
   P(f, '#f1e4c8', t.x + 16, t.y - 4, 3, 4); P(f, '#c46a5d', t.x + 16, t.y - 3, 3, 1); scn.mug = { x: t.x + 17, y: t.y - 5 };
   // floor lamp (if room)
   if (L.cx > 16){ const fx2 = L.cx - 7; P(f, '#3a2a24', fx2 - 2, L.floorY + 6, 6, 1); P(f, '#5a4a3a', fx2, L.floorY - 36, 1, 42); P(f, '#e9b465', fx2 - 4, L.floorY - 43, 9, 6); P(f, '#f6cf85', fx2 - 3, L.floorY - 44, 7, 1); P(f, '#c98a3e', fx2 - 4, L.floorY - 38, 9, 1); scn.lamps.push({ x: fx2, y: L.floorY - 37, r: 40 }); }
@@ -277,7 +277,9 @@ function resetMotes(){ motes = []; if (!scn.beam) return; for (let i = 0; i < 16
 // ---------------------------------------------------------------- the couple
 const SNUG = -4; // pull her into his chest
 const her = { book: false, pose: 0, shift: 0, sighAt: performance.now() + 12000 + Math.random() * 10000, zAt: 0, quiet: 0 };
-const him = { glance: 0, flip: -1, flipAt: performance.now() + 9000, heart: 0 };
+const him = { glance: 0, flip: -1, flipAt: performance.now() + 9000, heart: 0, stroke: 0, strokeAt: performance.now() + 25000 + Math.random() * 15000, squeeze: 0, squeezeAt: performance.now() + 50000 + Math.random() * 40000 };
+const RIBBON = { autumn: '#c46a5d', winter: '#8c3a4e', spring: '#e98fb0', summer: '#d9a24b' };
+let moth = { a: Math.random() * 6.28 }, glint = 0, lastFl = 0;
 let zs = [], puffs = [];
 function blanketTop(x, pose, br, k){
   const bump = (c, w, h) => h * Math.max(0, 1 - ((x - SNUG - c) / w) ** 2);
@@ -300,10 +302,13 @@ function drawCouple(T, now){
   p(c.lid, 16 + gl, -3, 2, 1); p(c.lid, 20 + gl, -3, 2, 1);
   p(c.skinD, 19, -2, 1, 1);
   p(c.beard, 15, -1, 2, 1); p(c.beard, 21, -1, 2, 1); p(c.beard, 17, -1, 4, 1); p(c.beard, 15, 0, 8, 2); p(c.beard, 16, 2, 6, 1); p('#7a5236', 18, 0, 2, 1);
+  if (gl){ p('#c9806a', 18, 1, 2, 1); p('#c9806a', 17, 0, 1, 1); p('#c9806a', 20, 0, 1, 1); g.globalAlpha = .55; p(c.blush, 22, -2, 1, 1); p(c.blush, 15, -2, 1, 1); g.globalAlpha = 1; } // soft smile while he looks at her
   // book (open) with optional page flip
   p('#8a2f2f', 17, 5, 15, 7); p('#f6ecd4', 18, 5, 6, 6); p('#f6ecd4', 25, 5, 6, 6); p('#6a2222', 24, 5, 1, 7);
   for (const y of [6, 8, 10]){ p('#cbbd9f', 19, y, 4, 1); p('#cbbd9f', 26, y, 4, 1); }
   if (him.flip >= 0){ const k = him.flip, col = Math.round(lerp(30, 18, k)), lift = Math.round(Math.sin(k * Math.PI) * 2); p('#fffaf0', col, 5 - lift, 1, 6); p('#e8dcc0', col + (k < .5 ? -1 : 1), 5 - lift, 1, 6); }
+  { const rib = RIBBON[scn.e.season] || '#c46a5d', k = him.flip, sw = k >= 0 ? Math.round(Math.sin(k * Math.PI * 2) * 1.4) : 0, up = k >= 0 ? Math.round(Math.sin(k * Math.PI) * 1.5) : 0; // bookmark ribbon
+    p(rib, 24, 12 - up, 1, 2); p(rib, 24 + sw, 14 - up, 1, 1); p(mix(rib, '#000000', .2), 24 + (sw || 1), 15 - up, 1, 1); }
   p(c.sweater, 13, 8, 4, 4); p(c.skin, 16, 10, 2, 2); p(c.sweater, 28, 5, 3, 6); p(c.skin, 30, 10, 2, 2);
   // ----- blanket over both
   const br = Math.sin(T * Math.PI * 2 / 4.6) > .2 ? 1 : 0, k = her.shift > 0 ? 1 - her.shift : 1, pose = her.pose;
@@ -328,7 +333,15 @@ function drawCouple(T, now){
   if (pose === 0) h(c.skin, 29, 16, 2, 1);
   p('#c98ba0', 36 + dx, 16 + dy, 5, 2); p('#b5778c', 36 + dx, 17 + dy, 5, 1); // her cardigan shoulder
   // his arm around her, over the blanket
-  p(c.sweater, 34, 17, 9, 2); p(c.sweaterD, 34, 18, 9, 1); p(c.skin, 43, 17, 2, 2);
+  p(c.sweater, 34, 17, 9, 2); p(c.sweaterD, 34, 18, 9, 1); if (him.stroke <= 0) p(c.skin, 43, 17, 2, 2);
+  // now and then he strokes her hair: the hand around her slides up onto her bob and drifts 1px
+  if (him.stroke > 0){ const s = Math.sin((1 - him.stroke / 1.2) * Math.PI * 2) > 0 ? 1 : 0, hx0 = 36 + dx + s, hy0 = 10 + dy;
+    p(c.sweater, 41, 16, 2, 1); p(c.sweater, hx0 + 2, 15 + dy, Math.max(1, 42 - (hx0 + 2)), 1); p(c.sweaterD, hx0 + 3, 16 + dy, Math.max(1, 41 - (hx0 + 3)), 1); p(c.sweater, hx0 + 2, hy0 + 2, 2, 15 + dy - hy0 - 2); p(c.skin, hx0, hy0, 2, 2); p(c.skinD, hx0, hy0 + 2, 2, 1); p(c.skinD, hx0 + 2, hy0 + 1, 1, 2); p(c.hairFL, hx0 - 1, hy0, 1, 1); }
+  // hands finding each other under the blanket
+  if (him.squeeze > 0){ const t2 = 1 - him.squeeze / 2, ty = blanketTop(52, pose, br, k), pz = t2 > .35 && t2 < .7 ? 1 : 0;
+    g.globalAlpha = Math.min(1, him.squeeze * 3, t2 * 6);
+    p(c.skin, 49 + dx + pz, ty + 1, 2, 1); p(c.skinD, 49 + dx + pz, ty + 2, 1, 1); p(c.skin, 52 + dx - pz, ty + 1, 2, 1); p(c.skinD, 53 + dx - pz, ty + 2, 1, 1); p(c.skinD, 51 + dx, ty + 1, 1, 1);
+    g.globalAlpha = 1; }
   // sometimes she dozed off with a book of her own, tucked under her hand on the blanket
   if (her.book && k > .5){ const bx = 46 + dx, by = 15 + dy; p('#2f5d6a', bx, by, 8, 4); p('#3f7a88', bx, by, 8, 1); p('#f6ecd4', bx + 1, by + 4, 7, 1); p('#d9b45a', bx + 3, by + 1, 3, 1); p('#c98ba0', bx - 2, by + 2, 3, 2); p(c.skin, bx - 1, by + 1, 2, 1); }
   // zzz from her
@@ -353,13 +366,15 @@ function drawZs(dt){
 function sigh(now){
   her.shift = 1; her.pose ^= 1; if (Math.random() < .35) her.book = !her.book; her.quiet = 2.6; her.sighAt = now + (16000 + Math.random() * 20000);
   puffs.push({ x: L.cx + 29 + her.pose, y: L.cTop + 15, t: 0 }); audio.sigh();
-  setTimeout(() => { him.glance = 3; him.heart = 2.2; }, 900);
+  setTimeout(() => { him.glance = 3; him.heart = 2.2; if (Math.random() < .4) setTimeout(() => { if (him.squeeze <= 0) him.squeeze = 2; }, 1600); }, 900);
 }
 function updateCouple(dt, now){
   if (her.shift > 0) her.shift = Math.max(0, her.shift - dt / 1.3);
   if (her.quiet > 0) her.quiet -= dt;
   if (now > her.sighAt) sigh(now);
   if (him.glance > 0) him.glance -= dt; if (him.heart > 0) him.heart -= dt;
+  if (him.stroke > 0) him.stroke -= dt; else if (now > him.strokeAt && her.shift <= 0){ him.stroke = 1.2; him.strokeAt = now + 25000 + Math.random() * 15000; }
+  if (him.squeeze > 0) him.squeeze -= dt; else if (now > him.squeezeAt){ him.squeeze = 2; him.squeezeAt = now + 60000 + Math.random() * 40000; }
   if (him.flip >= 0){ him.flip += dt / .7; if (him.flip >= 1) him.flip = -1; }
   else if (now > him.flipAt){ him.flip = 0; him.flipAt = now + 14000 + Math.random() * 16000; }
 }
@@ -370,6 +385,8 @@ const CAT = {
          ['...........o.o', '.o.........ooo', 'o..........oko', '.o.ododdodooop', '..oooooooooo..', '...oo.o.oo.o..', '...o..o..o..o.']],
   sit: [['......o.o.', '......ooo.', '......oko.', '.....oooop', 'o...ooooo.', 'o..ododdo.', '.oooooooo.', '..ooooooo.', '..w.w..ww.'],
         ['......o.o.', '......ooo.', '......oko.', '.....oooop', '....ooooo.', 'o..ododdo.', 'ooooooooo.', '..ooooooo.', '..w.w..ww.']],
+  curl: [['........o.o', '.ooooooooo.', 'oododdooko.', 'ooooooooooo', '.wwwoooooo.'],
+          ['........o.o', '.ooooooooo.', 'oododdooko.', 'oooooooooop', '.wwwoooooo.']],
   stretch: [['o...............', '.oooo...........', '.odddoo.....o.o.', '..ooooooo...ooo.', '..oo.ooooooooko.', '..o....o.wwwwwp.']],
 };
 const CATPAL = { o: C.cat, d: C.catD, w: C.catW, k: C.catK, p: C.catP };
@@ -377,15 +394,31 @@ let cat = null, nextCat = performance.now() + 6000;
 function spawnCat(route){
   const sillRoute = route ? route === 'sill' : Math.random() < .4, dir = Math.random() < .5 ? 1 : -1;
   if (sillRoute){ const x0 = L.winX - 16, x1 = L.winX + L.ww + 2; cat = { route: 'sill', dir, x: dir > 0 ? x0 : x1, end: dir > 0 ? x1 : x0, y: L.sill - 7, t: 0, stop: lerp(x0, x1, .3 + Math.random() * .4), state: 'walk', timer: 0, did: false }; }
-  else { cat = { route: 'floor', dir, x: dir > 0 ? -18 : W + 2, end: dir > 0 ? W + 4 : -20, y: L.catY - 7, t: 0, stop: L.cx + 10 + Math.random() * (L.cw - 10), state: 'walk', timer: 0, did: false }; }
+  else { const couch = Math.random() < .25; cat = { route: 'floor', couch, dir, x: dir > 0 ? -18 : W + 2, end: dir > 0 ? W + 4 : -20, y: L.catY - 7, t: 0, stop: couch ? L.cx + 62 : L.cx + 10 + Math.random() * (L.cw - 10), state: 'walk', timer: 0, did: false }; }
 }
 function updateCat(dt, now, layer){
   if (!cat){ if (layer === 'floor' && now > nextCat) spawnCat(); return; }
   if (cat.route !== layer) return;
   const c = cat; c.t += dt;
   if (c.state === 'walk'){ c.x += c.dir * 10 * dt * Math.max(.6, MOTION);
-    if (!c.did && Math.abs(c.x - c.stop) < 1){ c.did = true; c.state = c.route === 'floor' && Math.random() < .55 ? 'stretch' : 'sit'; c.timer = c.state === 'stretch' ? 1.8 : 4 + Math.random() * 4; } }
-  else { c.timer -= dt; if (c.timer <= 0){ if (c.state === 'stretch'){ c.state = 'sit'; c.timer = 3 + Math.random() * 3; } else c.state = 'walk'; } }
+    if (!c.did && Math.abs(c.x - c.stop) < 1){ c.did = true; c.x = c.stop;
+      if (c.couch){ c.state = 'up'; c.timer = .6; }
+      else { c.state = c.route === 'floor' && Math.random() < .55 ? 'stretch' : 'sit'; c.timer = c.state === 'stretch' ? 1.8 : 4 + Math.random() * 4; } } }
+  else { c.timer -= dt; if (c.timer <= 0){
+    if (c.state === 'stretch'){ c.state = 'sit'; c.timer = 3 + Math.random() * 3; }
+    else if (c.state === 'up'){ c.state = 'curl'; c.timer = 5 + Math.random() * 4; }
+    else if (c.state === 'curl'){ c.state = 'down'; c.timer = .6; }
+    else c.state = 'walk'; } }
+  // couch visit: hop up onto the blanket by their feet, curl up, hop back down
+  if (c.state === 'up' || c.state === 'down' || c.state === 'curl'){
+    const floorB = c.y + 7, couchB = L.cTop + 18, k = c.state === 'curl' ? 1 : c.state === 'up' ? 1 - c.timer / .6 : c.timer / .6;
+    const b = Math.round(lerp(floorB, couchB, k) - (c.state === 'curl' ? 0 : Math.sin(k * Math.PI) * 6));
+    const spr2 = c.state === 'curl' ? CAT.curl[Math.floor(c.t * .8) % 2] : CAT.walk[0];
+    const pal2 = scn.e.night ? Object.fromEntries(Object.entries(CATPAL).map(([kk, v]) => [kk, mix(v, '#2a1c3a', .2)])) : CATPAL;
+    rows(ctx, pal2, spr2, Math.round(c.x), b - spr2.length, c.dir);
+    if (c.state === 'curl' && c.timer > 1){ const hk = (c.timer % 1.8) / 1.8; ctx.globalAlpha = hk; ctx.fillStyle = '#f39bbd'; const hx = Math.round(c.x + 4), hy = Math.round(b - 9 - (1 - hk) * 5);
+      ctx.fillRect(hx, hy, 1, 1); ctx.fillRect(hx + 2, hy, 1, 1); ctx.fillRect(hx, hy + 1, 3, 1); ctx.fillRect(hx + 1, hy + 2, 1, 1); ctx.globalAlpha = 1; }
+    return; }
   let spr, yo = 0;
   if (c.state === 'walk'){ spr = CAT.walk[Math.floor(c.t * 5) % 2]; }
   else if (c.state === 'sit'){ spr = CAT.sit[Math.floor(c.t * 1.2) % 2]; yo = -2; }
@@ -434,7 +467,7 @@ function frame(now){
   ctx.restore();
   // fairy lights + candle
   for (const f of scn.fairy){ const a = .55 + .45 * Math.sin(T * 1.1 + f.p); ctx.globalAlpha = a; ctx.fillStyle = f.c; ctx.fillRect(f.x + 1, f.y, 1, 1); if (e.night){ ctx.globalAlpha = a * .25; ctx.fillRect(f.x, f.y - 1, 3, 3); } } ctx.globalAlpha = 1;
-  { const cd = scn.candle, fl = Math.sin(T * 9) > .3 ? 1 : 0; ctx.fillStyle = '#ffd27a'; ctx.fillRect(cd.x + (fl ? 1 : 0), cd.y, 1, 2); ctx.fillStyle = '#fff4c4'; ctx.fillRect(cd.x, cd.y + 1, 1, 1); }
+  { const cd = scn.candle, fl = Math.sin(T * 9) > .3 ? 1 : 0; if (fl !== lastFl){ lastFl = fl; if (glint <= 0 && Math.random() < .06) glint = .07; } ctx.fillStyle = '#ffd27a'; ctx.fillRect(cd.x + (fl ? 1 : 0), cd.y, 1, 2); ctx.fillStyle = '#fff4c4'; ctx.fillRect(cd.x, cd.y + 1, 1, 1); }
   // clock with real time
   if (scn.clock){ const d = new Date(), { x, y } = scn.clock, hA = ((d.getHours() % 12) + d.getMinutes() / 60) / 12 * Math.PI * 2, mA = d.getMinutes() / 60 * Math.PI * 2;
     ctx.fillStyle = '#3a2a24'; for (let i = 1; i <= 3; i++) ctx.fillRect(Math.round(x + Math.sin(mA) * i), Math.round(y - Math.cos(mA) * i), 1, 1);
@@ -452,6 +485,12 @@ function frame(now){
   if (scn.beam){ ctx.fillStyle = `rgba(255,228,170,${scn.beam})`; ctx.beginPath(); ctx.moveTo(x0, y0 + 2); ctx.lineTo(x0 + w, y0 + 2); ctx.lineTo(x0 + w + 34, H); ctx.lineTo(x0 + 26, H); ctx.closePath(); ctx.fill(); }
   ctx.globalCompositeOperation = 'source-over';
   for (const m of motes){ m.p += dt * m.v * .4; const x = m.x + Math.sin(m.p) * 6 + (m.y - y0) * .2, y = m.y + Math.sin(m.p * .7) * 4; ctx.globalAlpha = .35 + .35 * Math.sin(m.p * 3); ctx.fillStyle = '#fff3d0'; ctx.fillRect(Math.round(x), Math.round(y), 1, 1); } ctx.globalAlpha = 1;
+  // glasses glint when the candle flickers just right
+  if (glint > 0){ glint -= dt; const gp = scn.glasses; ctx.fillStyle = '#ffffff'; ctx.fillRect(gp.x + 1, gp.y - 1, 1, 1); ctx.globalAlpha = .6; ctx.fillRect(gp.x, gp.y, 1, 1); ctx.globalAlpha = 1; }
+  // night moth circling the table lamp
+  if (e.night && scn.tableLamp){ moth.a += dt * (reduceMotion ? .35 : 1.1); const tl = scn.tableLamp,
+      mx = Math.round(tl.x + Math.cos(moth.a) * 7), my = Math.round(tl.y - 1 + Math.sin(moth.a * 1.6) * 3);
+    ctx.fillStyle = '#e8dcc0'; ctx.fillRect(mx, my, 1, 1); if (!reduceMotion && Math.sin(T * 24) > 0){ ctx.fillStyle = 'rgba(232,220,192,.6)'; ctx.fillRect(mx - 1, my, 1, 1); } }
   drawZs(dt);
   requestAnimationFrame(frame);
 }
